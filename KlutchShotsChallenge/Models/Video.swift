@@ -30,7 +30,7 @@ extension Video {
         uploadTime: "2021-01-01",
         views: "1000",
         author: "John Doe",
-        videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        videoUrl: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
         description: "This is an example video",
         subscriber: "1000",
         isLive: false

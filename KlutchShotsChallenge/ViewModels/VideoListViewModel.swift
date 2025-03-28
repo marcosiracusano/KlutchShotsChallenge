@@ -8,12 +8,13 @@
 import Foundation
 import Combine
 
-class VideoListViewModel: ObservableObject {
+final class VideoListViewModel: ObservableObject {
     @Published var videos: [Video] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
     
     private let networking: NetworkingProtocol
+    private var cancellables = Set<AnyCancellable>()
     
     init(networking: NetworkingProtocol = NetworkingService()) {
         self.networking = networking
@@ -21,19 +22,32 @@ class VideoListViewModel: ObservableObject {
     
     func fetchVideos() {
         isLoading = true
-        Task {
-            do {
-                let fetchedVideos = try await networking.fetchVideos()
-                DispatchQueue.main.async {
-                    self.videos = fetchedVideos
-                    self.isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to load videos: \(error.localizedDescription)"
-                    self.isLoading = false
+        errorMessage = nil
+        
+        Future<[Video], Error> { [weak self] promise in
+            guard let self else { return }
+            
+            Task {
+                do {
+                    let videos = try await self.networking.fetchVideos()
+                    promise(.success(videos))
+                } catch {
+                    promise(.failure(error))
                 }
             }
         }
+        .receive(on: DispatchQueue.main)
+        .sink(receiveCompletion: { [weak self] completion in
+                self?.isLoading = false
+                
+                if case .failure(let error) = completion {
+                    self?.errorMessage = "Failed to load videos: \(error.localizedDescription)"
+                }
+            },
+            receiveValue: { [weak self] fetchedVideos in
+                self?.videos = fetchedVideos
+            }
+        )
+        .store(in: &cancellables)
     }
 }
