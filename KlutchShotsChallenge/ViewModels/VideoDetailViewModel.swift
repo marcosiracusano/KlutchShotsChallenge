@@ -18,7 +18,6 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var downloadState: DownloadState = .notStarted
     
     // MARK: - Private properties
-    private var currentVideo: Video?
     private var cancellables = Set<AnyCancellable>()
     private let downloadManager: DownloadManagerProtocol
     
@@ -29,15 +28,14 @@ final class VideoDetailViewModel: ObservableObject {
     }
     
     // MARK: - Internal methods
-    func loadVideo(_ video: Video) {
-        currentVideo = video
-        
+    func loadVideo(for videoId: String, videoUrl: String) {
         // If the video is already downloaded, set the download state to completed
-        if downloadManager.videoExists(for: video.id) {
+        if downloadManager.videoExists(for: videoId) {
             downloadState = .completed
         }
         
-        guard let url = URL(string: video.videoUrl) else {
+        // Get the appropriate URL from download manager
+        guard let url = downloadManager.getPlaybackURL(for: videoId, fallbackUrl: videoUrl) else {
             // TODO: show error
             return
         }
@@ -72,7 +70,7 @@ final class VideoDetailViewModel: ObservableObject {
     }
     
     func downloadVideo(from url: URL, with id: String) {
-        downloadManager.downloadVideo(from: url, with: id)
+        downloadManager.downloadVideo(id, from: url)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 self?.downloadState = state

@@ -26,7 +26,7 @@ struct VideoDetailView: View {
         .navigationTransition(.zoom(sourceID: video.id, in: animation))
         .animation(.easeInOut, value: viewModel.isFullScreen)
         .onAppear {
-            viewModel.loadVideo(video)
+            viewModel.loadVideo(for: video.id, videoUrl: video.videoUrl)
         }
         .onDisappear {
             viewModel.cleanUp()
