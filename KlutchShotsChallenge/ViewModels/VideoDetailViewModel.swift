@@ -21,14 +21,16 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     
     // MARK: - Private properties
-    private var currentVideoId: String?
-    private var cancellables = Set<AnyCancellable>()
     private let downloadManager: DownloadManagerProtocol
+    private var currentVideoId: String?
+    private let downloadActionSubject = PassthroughSubject<(id: String, url: String), Never>()
+    private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initializer
     init(downloadManager: DownloadManagerProtocol = DownloadManager()) {
         self.downloadManager = downloadManager
         setupOrientationObserver()
+        setupDownloadPipeline()
     }
     
     // MARK: - Internal methods
@@ -77,42 +79,7 @@ final class VideoDetailViewModel: ObservableObject {
     }
     
     func handleVideoDownload(videoId: String, videoUrl: String) {
-        switch downloadState {
-        case .notStarted:
-            downloadVideo(videoId: videoId, videoUrl: videoUrl)
-        case .downloading:
-            break
-        case .completed:
-            isShowingDeleteAlert = true
-        case .failed(error: let error):
-            // TODO: handle error
-            break
-        }
-    }
-    
-    func downloadVideo(videoId: String, videoUrl: String) {
-        if case .completed = downloadState { return }
-        
-        guard let url = URL(string: videoUrl) else {
-            // TODO: handle error
-            return
-        }
-        
-        downloadManager.downloadVideo(videoId, from: url)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
-                self?.downloadState = state
-                
-                // If the download is completed and we have the current videoId, we switch to local playback
-                if case .completed = state,
-                   let currentVideoId = self?.currentVideoId,
-                   let downloadedVideoId = self?.downloadManager.currentVideoId,
-                   currentVideoId == downloadedVideoId {
-                    
-                    self?.switchToLocalPlayback()
-                }
-            }
-            .store(in: &cancellables)
+        downloadActionSubject.send((id: videoId, url: videoUrl))
     }
     
     func deleteDownloadedVideo(videoId: String, videoUrl: String) {
@@ -156,6 +123,50 @@ final class VideoDetailViewModel: ObservableObject {
                 self?.isFullScreen = orientation.isLandscape
             }
         }
+    }
+    
+    private func setupDownloadPipeline() {
+        downloadActionSubject
+            .receive(on: DispatchQueue.main)
+            .compactMap { [weak self] videoInfo -> AnyPublisher<DownloadState, Never>? in
+                guard let self else { return nil }
+                
+                switch self.downloadState {
+                case .notStarted:
+                    // If the file is not downloaded, we start downloading it
+                    guard let url = URL(string: videoInfo.url) else { return nil }
+                    return self.downloadManager.downloadVideo(videoInfo.id, from: url)
+                    
+                case .downloading:
+                    // If the file is already downloading, we don't interfere
+                    return nil
+                    
+                case .completed:
+                    // If the file is already downloaded, we show the delete alert
+                    self.isShowingDeleteAlert = true
+                    return nil
+                    
+                case .failed(error: let error):
+                    // If the download failed, we show the error message
+                    self.errorMessage = error
+                    return nil
+                }
+            }
+            .switchToLatest()
+            .sink { [weak self] state in
+                
+                self?.downloadState = state
+                
+                // If the file is downloaded, we switch to local playback
+                if case .completed = state,
+                   let currentVideoId = self?.currentVideoId,
+                   let downloadedVideoId = self?.downloadManager.currentVideoId,
+                   currentVideoId == downloadedVideoId {
+                    
+                    self?.switchToLocalPlayback()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func switchToLocalPlayback() {
