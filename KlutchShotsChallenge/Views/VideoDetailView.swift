@@ -9,8 +9,11 @@ import SwiftUI
 import _AVKit_SwiftUI
 
 struct VideoDetailView: View {
-    let video: Video
+    
     @StateObject private var viewModel = VideoDetailViewModel()
+    
+    let video: Video
+    let animation: Namespace.ID
     
     var body: some View {
         Group {
@@ -20,6 +23,7 @@ struct VideoDetailView: View {
                 createRegularView()
             }
         }
+        .navigationTransition(.zoom(sourceID: video.id, in: animation))
         .animation(.easeInOut, value: viewModel.isFullScreen)
         .onAppear {
             viewModel.loadVideo(video)
@@ -145,5 +149,5 @@ private extension VideoDetailView {
 }
 
 #Preview {
-    VideoDetailView(video: Video.example)
+    VideoListView()
 }

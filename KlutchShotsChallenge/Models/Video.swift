@@ -25,7 +25,7 @@ extension Video {
     static let example = Video(
         id: "1",
         title: "Example Video",
-        thumbnailUrl: "https://via.placeholder.com/150",
+        thumbnailUrl: "https://img.jakpost.net/c/2019/09/03/2019_09_03_78912_1567484272._large.jpg",
         duration: "10:00",
         uploadTime: "2021-01-01",
         views: "1000",

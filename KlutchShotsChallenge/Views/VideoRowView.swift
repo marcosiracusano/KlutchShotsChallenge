@@ -13,18 +13,25 @@ struct VideoRowView: View {
     var body: some View {
         HStack {
             AsyncImage(url: URL(string: video.thumbnailUrl)) { image in
-                image.resizable().scaledToFit()
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(.rect(cornerRadius: 5))
             } placeholder: {
                 ProgressView()
             }
             .frame(width: 100, height: 100)
             
             VStack(alignment: .leading) {
-                Text(video.title).font(.headline)
+                Text(video.title).font(.headline).multilineTextAlignment(.leading)
                 Text(video.duration).font(.subheadline)
                 Text(video.author).font(.caption)
             }
+            .foregroundStyle(Color(.primary))
+            
+            Spacer()
         }
+        .frame(maxWidth: .infinity)
     }
 }
 

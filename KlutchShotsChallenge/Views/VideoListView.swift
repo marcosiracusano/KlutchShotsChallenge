@@ -9,6 +9,7 @@ import SwiftUI
 
 struct VideoListView: View {
     @StateObject private var viewModel: VideoListViewModel
+    @Namespace private var animation
     
     init(viewModel: VideoListViewModel = VideoListViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -16,21 +17,30 @@ struct VideoListView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(viewModel.videos) { video in
-                    NavigationLink(value: video) {
-                        VideoRowView(video: video)
+            ScrollView {
+                LazyVStack {
+                    ForEach(viewModel.videos) { video in
+                        NavigationLink(value: video) {
+                            VideoRowView(video: video)
+                                .matchedTransitionSource(id: video.id, in: animation) {
+                                    $0
+                                        .background(.clear)
+                                        .clipShape(.rect(cornerRadius: 15))
+                                }
+                        }
                     }
                 }
-            }
-            .navigationTitle("Videos")
-            .navigationDestination(for: Video.self) { video in
-                VideoDetailView(video: video)
-            }
-            .overlay {
-                if viewModel.isLoading {
-                    ProgressView()
+                .navigationTitle("Videos")
+                .navigationDestination(for: Video.self) { video in
+                    VideoDetailView(video: video, animation: animation)
+                        .toolbarVisibility(.hidden, for: .navigationBar)
                 }
+                .overlay {
+                    if viewModel.isLoading {
+                        ProgressView()
+                    }
+                }
+                .padding(.horizontal)
             }
         }
         .alert(item: $viewModel.errorMessage) { error in
