@@ -82,6 +82,7 @@ private extension VideoDetailView {
     
     func createDetailsSectionView() -> some View {
         VStack(alignment: .leading, spacing: 15) {
+            createVideoSourceIndicator()
             createHeaderSection()
             Divider()
             createAuthorSection()
@@ -125,11 +126,7 @@ private extension VideoDetailView {
             Spacer()
             
             DownloadButton(state: viewModel.downloadState) {
-                guard let url = URL(string: video.videoUrl) else {
-                    // TODO: handle error
-                    return
-                }
-                viewModel.downloadVideo(from: url, with: video.id)
+                viewModel.downloadVideo(from: video.videoUrl, with: video.id)
             }
             .frame(width: 44, height: 44)
         }
@@ -145,6 +142,24 @@ private extension VideoDetailView {
             .font(.body)
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
+    }
+    
+    @ViewBuilder
+    func createVideoSourceIndicator() -> some View {
+        HStack {
+            if viewModel.isPlayingFromLocalFile {
+                Label("Local", systemImage: "arrow.down.circle.fill")
+                    .font(.caption)
+                    .foregroundColor(.green)
+            } else {
+                Label("Streaming", systemImage: "network")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+            }
+        }
+        .padding(.horizontal)
+        .transition(.opacity)
+        .frame(maxWidth: .infinity)
     }
 }
 

@@ -15,9 +15,11 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var player: AVPlayer?
     @Published var isBuffering = false
     @Published var isFullScreen = false
+    @Published var isPlayingFromLocalFile = false
     @Published var downloadState: DownloadState = .notStarted
     
     // MARK: - Private properties
+    private var currentVideoId: String?
     private var cancellables = Set<AnyCancellable>()
     private let downloadManager: DownloadManagerProtocol
     
@@ -29,8 +31,11 @@ final class VideoDetailViewModel: ObservableObject {
     
     // MARK: - Internal methods
     func loadVideo(for videoId: String, videoUrl: String) {
+        currentVideoId = videoId
+        
         // If the video is already downloaded, set the download state to completed
         if downloadManager.videoExists(for: videoId) {
+            isPlayingFromLocalFile = true
             downloadState = .completed
         }
         
@@ -69,11 +74,27 @@ final class VideoDetailViewModel: ObservableObject {
         player.play()
     }
     
-    func downloadVideo(from url: URL, with id: String) {
+    func downloadVideo(from url: String, with id: String) {
+        if case .completed = downloadState { return }
+        
+        guard let url = URL(string: url) else {
+            // TODO: handle error
+            return
+        }
+        
         downloadManager.downloadVideo(id, from: url)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 self?.downloadState = state
+                
+                // If the download is completed and we have the current videoId, we switch to local playback
+                if case .completed = state,
+                   let currentVideoId = self?.currentVideoId,
+                   let downloadedVideoId = self?.downloadManager.currentVideoId,
+                   currentVideoId == downloadedVideoId {
+                    
+                    self?.switchToLocalPlayback()
+                }
             }
             .store(in: &cancellables)
     }
@@ -106,5 +127,33 @@ final class VideoDetailViewModel: ObservableObject {
                 self?.isFullScreen = orientation.isLandscape
             }
         }
+    }
+    
+    private func switchToLocalPlayback() {
+        guard let player,
+              let currentVideoId,
+              let localURL = downloadManager.getLocalURL(for: currentVideoId) else {
+            return
+        }
+        
+        // Save current playback time and playing state
+        let currentTime = player.currentTime()
+        let wasPlaying = player.timeControlStatus == .playing
+        
+        // Create new player item with local URL
+        let newPlayerItem = AVPlayerItem(url: localURL)
+        
+        // Replace the current item
+        player.replaceCurrentItem(with: newPlayerItem)
+        
+        // Seek to the previous position
+        player.seek(to: currentTime) { [weak self] success in
+            guard let self = self, success, wasPlaying else { return }
+            // Resume playback if it was playing
+            self.player?.play()
+        }
+        
+        // Update source indicator
+        isPlayingFromLocalFile = true
     }
 }

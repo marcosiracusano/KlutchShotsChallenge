@@ -42,22 +42,25 @@ enum DownloadState: Equatable {
 
 /// Protocol defining the download manager's capabilities
 protocol DownloadManagerProtocol {
+    var currentVideoId: String? { get }
+    
     func downloadVideo(_ videoId: String, from url: URL) -> AnyPublisher<DownloadState, Never>
     func videoExists(for videoId: String) -> Bool
     func cancelDownload()
     func getPlaybackURL(for videoId: String, fallbackUrl: String) -> URL?
+    func getLocalURL(for videoId: String) -> URL?
 }
 
 /// A manager that handles downloading a single video at a time
 final class DownloadManager: NSObject, DownloadManagerProtocol {
-
     // MARK: - Properties
     private var downloadStateSubject = CurrentValueSubject<DownloadState, Never>(.notStarted)
     private var downloadTask: URLSessionDownloadTask?
-    private var currentVideoId: String?
+    private(set) var currentVideoId: String?
     private lazy var downloadSession: URLSession = {
         URLSession(configuration: .default, delegate: self, delegateQueue: nil)
     }()
+    private(set) var currentDownloadingVideoId: String?
     
     // MARK: - Methods
     func downloadVideo(_ videoId: String, from url: URL) -> AnyPublisher<DownloadState, Never> {
@@ -99,16 +102,14 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
         // If local file exists, return local URL
         if videoExists(for: videoId),
            let localURL = getLocalURL(for: videoId) {
-            print("Using local file for playback: \(localURL.path)")
             return localURL
         }
         
         // Otherwise return remote URL
-        print("Streaming from remote URL: \(fallbackUrl)")
         return URL(string: fallbackUrl)
     }
     
-    private func getLocalURL(for videoId: String) -> URL? {
+    func getLocalURL(for videoId: String) -> URL? {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return documentsDirectory?.appendingPathComponent("\(videoId).mp4")
     }
