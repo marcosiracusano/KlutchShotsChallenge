@@ -42,6 +42,9 @@ struct VideoListView: View {
                 }
                 .padding(.horizontal)
             }
+            .refreshable {
+                viewModel.fetchVideos()
+            }
         }
         .alert(item: $viewModel.errorMessage) { error in
             Alert(title: Text("Error"), message: Text(error))
