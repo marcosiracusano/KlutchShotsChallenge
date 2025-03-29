@@ -49,6 +49,7 @@ protocol DownloadManagerProtocol {
     func cancelDownload()
     func getPlaybackURL(for videoId: String, fallbackUrl: String) -> URL?
     func getLocalURL(for videoId: String) -> URL?
+    func deleteDownloadedVideo(videoId: String) -> Bool
 }
 
 /// A manager that handles downloading a single video at a time
@@ -112,6 +113,23 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     func getLocalURL(for videoId: String) -> URL? {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return documentsDirectory?.appendingPathComponent("\(videoId).mp4")
+    }
+    
+    func deleteDownloadedVideo(videoId: String) -> Bool {
+        guard let localURL = getLocalURL(for: videoId),
+              FileManager.default.fileExists(atPath: localURL.path) else {
+            return false
+        }
+        
+        do {
+            try FileManager.default.removeItem(at: localURL)
+            print("Successfully deleted video from: \(localURL.path)")
+            return true
+        } catch {
+            print("Error deleting video: \(error.localizedDescription)")
+            // TODO: handle error properly
+            return false
+        }
     }
 }
 

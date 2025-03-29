@@ -16,7 +16,9 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var isBuffering = false
     @Published var isFullScreen = false
     @Published var isPlayingFromLocalFile = false
+    @Published var isShowingDeleteAlert = false
     @Published var downloadState: DownloadState = .notStarted
+    @Published var errorMessage: String? = nil
     
     // MARK: - Private properties
     private var currentVideoId: String?
@@ -74,15 +76,29 @@ final class VideoDetailViewModel: ObservableObject {
         player.play()
     }
     
-    func downloadVideo(from url: String, with id: String) {
+    func handleVideoDownload(videoId: String, videoUrl: String) {
+        switch downloadState {
+        case .notStarted:
+            downloadVideo(videoId: videoId, videoUrl: videoUrl)
+        case .downloading:
+            break
+        case .completed:
+            isShowingDeleteAlert = true
+        case .failed(error: let error):
+            // TODO: handle error
+            break
+        }
+    }
+    
+    func downloadVideo(videoId: String, videoUrl: String) {
         if case .completed = downloadState { return }
         
-        guard let url = URL(string: url) else {
+        guard let url = URL(string: videoUrl) else {
             // TODO: handle error
             return
         }
         
-        downloadManager.downloadVideo(id, from: url)
+        downloadManager.downloadVideo(videoId, from: url)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 self?.downloadState = state
@@ -97,6 +113,19 @@ final class VideoDetailViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    func deleteDownloadedVideo(videoId: String, videoUrl: String) {
+        let deleted = downloadManager.deleteDownloadedVideo(videoId: videoId)
+        
+        if deleted {
+            downloadState = .notStarted
+            
+            // If this is the currently playing video, switch to streaming
+            if videoId == currentVideoId {
+                switchToStreamingPlayback(from: videoUrl)
+            }
+        }
     }
     
     func cleanUp() {
@@ -155,5 +184,32 @@ final class VideoDetailViewModel: ObservableObject {
         
         // Update source indicator
         isPlayingFromLocalFile = true
+    }
+    
+    private func switchToStreamingPlayback(from videoUrl: String) {
+        guard let player,
+              let url = URL(string: videoUrl) else {
+            return
+        }
+        
+        // Save current playback time and playing state
+        let currentTime = player.currentTime()
+        let wasPlaying = player.timeControlStatus == .playing
+        
+        // Create new player item with streaming URL
+        let newPlayerItem = AVPlayerItem(url: url)
+        
+        // Replace the current item
+        player.replaceCurrentItem(with: newPlayerItem)
+        
+        // Seek to the previous position
+        player.seek(to: currentTime) { [weak self] success in
+            guard let self = self, success, wasPlaying else { return }
+            // Resume playback if it was playing
+            self.player?.play()
+        }
+        
+        // Update source indicator
+        isPlayingFromLocalFile = false
     }
 }
