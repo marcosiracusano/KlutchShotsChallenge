@@ -99,7 +99,7 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     }
     
     func getLocalURL(for videoId: String) -> URL? {
-        let documentsDirectory = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return documentsDirectory?.appendingPathComponent("\(videoId)")
     }
 }

@@ -10,19 +10,25 @@ import AVFoundation
 import Combine
 
 final class VideoDetailViewModel: ObservableObject {
+    
+    // MARK: - Internal properties
     @Published var player: AVPlayer?
     @Published var isBuffering = false
     @Published var isFullScreen = false
     @Published var downloadState: DownloadState = .notStarted
     
+    // MARK: - Private properties
     private var currentVideo: Video?
     private var cancellables = Set<AnyCancellable>()
     private let downloadManager: DownloadManagerProtocol
     
+    // MARK: - Initializer
     init(downloadManager: DownloadManagerProtocol = DownloadManager()) {
         self.downloadManager = downloadManager
+        setupOrientationObserver()
     }
     
+    // MARK: - Internal methods
     func loadVideo(_ video: Video) {
         currentVideo = video
         
@@ -65,12 +71,6 @@ final class VideoDetailViewModel: ObservableObject {
         player.play()
     }
     
-    func toggleFullScreen() {
-        withAnimation {
-            isFullScreen.toggle()
-        }
-    }
-    
     func downloadVideo(from url: URL, with id: String) {
         downloadManager.downloadVideo(from: url, with: id)
             .receive(on: DispatchQueue.main)
@@ -85,5 +85,28 @@ final class VideoDetailViewModel: ObservableObject {
         player = nil
         downloadManager.cancelDownload()
         cancellables.removeAll()
+    }
+    
+    // MARK: - Private methods
+    private func setupOrientationObserver() {
+        NotificationCenter.default
+            .publisher(for: UIDevice.orientationDidChangeNotification)
+            .sink { [weak self] _ in
+                self?.updateFullScreenState()
+            }
+            .store(in: &cancellables)
+        
+        // Set initial state based on current orientation
+        updateFullScreenState()
+    }
+    
+    private func updateFullScreenState() {
+        let orientation = UIDevice.current.orientation
+        DispatchQueue.main.async { [weak self] in
+            // Only update if orientation is a valid interface orientation
+            if orientation.isPortrait || orientation.isLandscape {
+                self?.isFullScreen = orientation.isLandscape
+            }
+        }
     }
 }
