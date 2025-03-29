@@ -14,21 +14,23 @@ struct DownloadButton: View {
     var body: some View {
         Button(action: action) {
             if state.isDownloading {
-                Circle()
-                    .stroke(lineWidth: 3)
-                    .opacity(0.3)
-                    .foregroundColor(.gray)
-                
-                Circle()
-                    .trim(from: 0.0, to: CGFloat(state.progress))
-                    .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .foregroundColor(.blue)
-                    .rotationEffect(Angle(degrees: 270.0))
-                    .animation(.linear, value: state.progress)
-                
-                Text("\(Int(state.progress * 100))%")
-                    .font(.caption)
-                    .bold()
+                ZStack {
+                    Circle()
+                        .stroke(lineWidth: 3)
+                        .opacity(0.3)
+                        .foregroundColor(.gray)
+                    
+                    Circle()
+                        .trim(from: 0.0, to: CGFloat(state.progress))
+                        .stroke(style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        .foregroundColor(.blue)
+                        .rotationEffect(Angle(degrees: 270.0))
+                        .animation(.linear, value: state.progress)
+                    
+                    Text("\(Int(state.progress * 100))%")
+                        .font(.caption)
+                        .bold()
+                }
                 
             } else if state.hasCompleted {
                 Image(systemName: "checkmark.circle.fill")

@@ -21,8 +21,7 @@ struct VideoDetailView: View {
             }
         }
         .onAppear {
-            guard let url = URL(string: video.videoUrl) else { return }
-            viewModel.loadVideo(from: url)
+            viewModel.loadVideo(video)
         }
         .onDisappear {
             viewModel.cleanUp()
@@ -135,7 +134,7 @@ private extension VideoDetailView {
                 // Download button
                 DownloadButton(state: viewModel.downloadState) {
                     guard let url = URL(string: video.videoUrl) else { return }
-                    viewModel.downloadVideo(from: url)
+                    viewModel.downloadVideo(from: url, with: video.id)
                 }
                 .frame(width: 44, height: 44)
             }
