@@ -58,6 +58,15 @@ protocol DownloadManagerProtocol {
     func deleteDownloadedVideo(videoId: String) -> AnyPublisher<DownloadState, Never>
 }
 
+protocol FileManagerProtocol {
+    func urls(for directory: FileManager.SearchPathDirectory, in domainMask: FileManager.SearchPathDomainMask) -> [URL]
+    func fileExists(atPath path: String) -> Bool
+    func removeItem(at URL: URL) throws
+    func moveItem(at srcURL: URL, to dstURL: URL) throws
+}
+
+extension FileManager: FileManagerProtocol {}
+
 /// A manager that handles downloading a single video at a time
 final class DownloadManager: NSObject, DownloadManagerProtocol {
     // MARK: - Properties
@@ -69,6 +78,13 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     }()
     private(set) var currentDownloadingVideoId: String?
     private let log: Logger = .download
+    private let fileManager: FileManagerProtocol
+    
+    // MARK: - Initializer
+    init(fileManager: FileManagerProtocol = FileManager.default) {
+        self.fileManager = fileManager
+        super.init()
+    }
     
     // MARK: - Methods
     func downloadVideo(_ videoId: String, from url: URL) -> AnyPublisher<DownloadState, Never> {
@@ -96,7 +112,7 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     
     func videoExists(for videoId: String) -> Bool {
         let localURL = getLocalURL(for: videoId)
-        return localURL != nil && FileManager.default.fileExists(atPath: localURL?.path ?? "")
+        return localURL != nil && fileManager.fileExists(atPath: localURL?.path ?? "")
     }
     
     func cancelDownload() {
@@ -118,13 +134,13 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     }
     
     func getLocalURL(for videoId: String) -> URL? {
-        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
         return documentsDirectory?.appendingPathComponent("\(videoId).mp4")
     }
     
     func deleteDownloadedVideo(videoId: String) -> AnyPublisher<DownloadState, Never> {
         guard let localURL = getLocalURL(for: videoId),
-              FileManager.default.fileExists(atPath: localURL.path) else {
+              fileManager.fileExists(atPath: localURL.path) else {
             
             log.error("Attempted to delete non-existent video with ID: \(videoId)")
             return Just(.failed(error: "The downloaded video could not be found", type: .deletion))
@@ -132,7 +148,7 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
         }
         
         do {
-            try FileManager.default.removeItem(at: localURL)
+            try fileManager.removeItem(at: localURL)
             log.info("Successfully deleted video from: \(localURL.path)")
             return Just(.notStarted)
                 .eraseToAnyPublisher()

@@ -32,11 +32,27 @@ protocol NetworkingProtocol {
     func fetchVideos() async throws -> [Video]
 }
 
+protocol URLSessionProtocol {
+    func data(from url: URL) async throws -> (Data, URLResponse)
+}
+
+extension URLSession: URLSessionProtocol {}
+
 struct NetworkingService: NetworkingProtocol {
     private let log: Logger = .networking
+    private let session: URLSessionProtocol
+    private let apiUrl: String
+    
+    init(
+        session: URLSessionProtocol = URLSession.shared,
+        apiUrl: String = Constants.apiUrl
+    ) {
+        self.session = session
+        self.apiUrl = apiUrl
+    }
     
     func fetchVideos() async throws -> [Video] {
-        guard let url = URL(string: Constants.apiUrl) else {
+        guard let url = URL(string: apiUrl) else {
             log.error("Invalid API URL: \(Constants.apiUrl)")
             throw NetworkError.invalidURL
         }
@@ -44,7 +60,7 @@ struct NetworkingService: NetworkingProtocol {
         log.info("Fetching videos from: \(url.absoluteString)")
         
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await session.data(from: url)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 log.error("Response is not HTTPURLResponse")
