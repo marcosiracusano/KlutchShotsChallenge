@@ -12,7 +12,12 @@ enum DownloadState: Equatable {
     case notStarted
     case downloading(progress: Float)
     case completed
-    case failed(error: String)
+    case failed(error: String, type: FailureType = .download)
+    
+    enum FailureType: Equatable {
+        case download
+        case deletion
+    }
     
     var progress: Float {
         switch self {
@@ -49,7 +54,7 @@ protocol DownloadManagerProtocol {
     func cancelDownload()
     func getPlaybackURL(for videoId: String, fallbackUrl: String) -> URL?
     func getLocalURL(for videoId: String) -> URL?
-    func deleteDownloadedVideo(videoId: String) -> Bool
+    func deleteDownloadedVideo(videoId: String) -> AnyPublisher<DownloadState, Never>
 }
 
 /// A manager that handles downloading a single video at a time
@@ -115,20 +120,27 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
         return documentsDirectory?.appendingPathComponent("\(videoId).mp4")
     }
     
-    func deleteDownloadedVideo(videoId: String) -> Bool {
+    func deleteDownloadedVideo(videoId: String) -> AnyPublisher<DownloadState, Never> {
         guard let localURL = getLocalURL(for: videoId),
               FileManager.default.fileExists(atPath: localURL.path) else {
-            return false
+            // If the file does not exist, we return an error
+            return Just(.failed(error: "File not found", type: .deletion))
+                .eraseToAnyPublisher()
         }
         
         do {
             try FileManager.default.removeItem(at: localURL)
             print("Successfully deleted video from: \(localURL.path)")
-            return true
+            
+            // We return notStarted to indicate that the video is not downloaded
+            return Just(.notStarted)
+                .eraseToAnyPublisher()
         } catch {
             print("Error deleting video: \(error.localizedDescription)")
-            // TODO: handle error properly
-            return false
+            
+            // We return an error of deletion
+            return Just(.failed(error: error.localizedDescription, type: .deletion))
+                .eraseToAnyPublisher()
         }
     }
 }

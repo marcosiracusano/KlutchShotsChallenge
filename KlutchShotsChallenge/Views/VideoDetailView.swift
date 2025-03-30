@@ -37,7 +37,7 @@ struct VideoDetailView: View {
         .alert("Delete Downloaded Video?", isPresented: $viewModel.isShowingDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
-                viewModel.deleteDownloadedVideo(videoId: video.id, videoUrl: video.videoUrl)
+                viewModel.deleteDownloadedVideo()
             }
         } message: {
             Text("The video will continue playing via streaming.")
@@ -136,9 +136,10 @@ private extension VideoDetailView {
             
             Spacer()
             
-            DownloadButton(state: viewModel.downloadState) {
-                viewModel.handleVideoDownload(videoId: video.id, videoUrl: video.videoUrl)
-            }
+            DownloadButton(
+                state: viewModel.downloadState,
+                action: viewModel.handleDownload
+            )
             .frame(width: 44, height: 44)
         }
     }

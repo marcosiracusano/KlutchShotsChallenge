@@ -21,9 +21,13 @@ final class VideoDetailViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     
     // MARK: - Private properties
+    private enum DownloadAction {
+        case download, delete
+    }
     private let downloadManager: DownloadManagerProtocol
     private var currentVideoId: String?
-    private let downloadActionSubject = PassthroughSubject<(id: String, url: String), Never>()
+    private var currentVideoUrl: String?
+    private let downloadActionSubject = PassthroughSubject<DownloadAction, Never>()
     private var cancellables = Set<AnyCancellable>()
     
     // MARK: - Initializer
@@ -35,7 +39,13 @@ final class VideoDetailViewModel: ObservableObject {
     
     // MARK: - Internal methods
     func loadVideo(for videoId: String, videoUrl: String) {
+        guard !videoId.isEmpty, !videoUrl.isEmpty else {
+            errorMessage = "Failed to obtain video ID and URL"
+            return
+        }
+        
         currentVideoId = videoId
+        currentVideoUrl = videoUrl
         
         // If the video is already downloaded, set the download state to completed
         if downloadManager.videoExists(for: videoId) {
@@ -45,7 +55,7 @@ final class VideoDetailViewModel: ObservableObject {
         
         // Get the appropriate URL from download manager
         guard let url = downloadManager.getPlaybackURL(for: videoId, fallbackUrl: videoUrl) else {
-            // TODO: show error
+            errorMessage = "Failed to obtain video URL"
             return
         }
         
@@ -78,21 +88,20 @@ final class VideoDetailViewModel: ObservableObject {
         player.play()
     }
     
-    func handleVideoDownload(videoId: String, videoUrl: String) {
-        downloadActionSubject.send((id: videoId, url: videoUrl))
+    func handleDownload() {
+        switch downloadState {
+        case .notStarted:
+            downloadActionSubject.send(.download)
+        case .completed:
+            isShowingDeleteAlert = true
+        default:
+            break
+        }
+        
     }
     
-    func deleteDownloadedVideo(videoId: String, videoUrl: String) {
-        let deleted = downloadManager.deleteDownloadedVideo(videoId: videoId)
-        
-        if deleted {
-            downloadState = .notStarted
-            
-            // If this is the currently playing video, switch to streaming
-            if videoId == currentVideoId {
-                switchToStreamingPlayback(from: videoUrl)
-            }
-        }
+    func deleteDownloadedVideo() {
+        downloadActionSubject.send(.delete)
     }
     
     func cleanUp() {
@@ -128,42 +137,46 @@ final class VideoDetailViewModel: ObservableObject {
     private func setupDownloadPipeline() {
         downloadActionSubject
             .receive(on: DispatchQueue.main)
-            .compactMap { [weak self] videoInfo -> AnyPublisher<DownloadState, Never>? in
-                guard let self else { return nil }
+            .compactMap { [weak self] action -> AnyPublisher<DownloadState, Never>? in
+                guard let self, let currentVideoId, let currentVideoUrl else { return nil }
                 
-                switch self.downloadState {
-                case .notStarted:
-                    // If the file is not downloaded, we start downloading it
-                    guard let url = URL(string: videoInfo.url) else { return nil }
-                    return self.downloadManager.downloadVideo(videoInfo.id, from: url)
+                switch action {
+                case .download:
+                    guard let url = URL(string: currentVideoUrl) else { return nil }
+                    return downloadManager.downloadVideo(currentVideoId, from: url)
                     
-                case .downloading:
-                    // If the file is already downloading, we don't interfere
-                    return nil
-                    
-                case .completed:
-                    // If the file is already downloaded, we show the delete alert
-                    self.isShowingDeleteAlert = true
-                    return nil
-                    
-                case .failed(error: let error):
-                    // If the download failed, we show the error message
-                    self.errorMessage = error
-                    return nil
+                case .delete:
+                    return downloadManager.deleteDownloadedVideo(videoId: currentVideoId)
                 }
             }
             .switchToLatest()
             .sink { [weak self] state in
+                guard let self, let currentVideoUrl else { return }
                 
-                self?.downloadState = state
+                downloadState = state
                 
-                // If the file is downloaded, we switch to local playback
-                if case .completed = state,
-                   let currentVideoId = self?.currentVideoId,
-                   let downloadedVideoId = self?.downloadManager.currentVideoId,
-                   currentVideoId == downloadedVideoId {
+                switch state {
+                case .completed:
+                    // If the file is downloaded, we switch to local playback
+                    switchToLocalPlayback()
                     
-                    self?.switchToLocalPlayback()
+                case .notStarted:
+                    // If the file was deleted, switch to streaming
+                    switchToStreamingPlayback(from: currentVideoUrl)
+                    
+                case .failed(let error, let errorType):
+                    // We show an error message and then go back to previous state
+                    switch errorType {
+                    case .download:
+                        errorMessage = "Download failed: \(error)"
+                        downloadState = .notStarted
+                    case .deletion:
+                        errorMessage = "Deletion failed: \(error)"
+                        downloadState = .completed
+                    }
+                    
+                default:
+                    break
                 }
             }
             .store(in: &cancellables)
