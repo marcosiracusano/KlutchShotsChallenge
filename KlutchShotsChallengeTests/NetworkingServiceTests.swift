@@ -10,10 +10,10 @@ import XCTest
 
 final class NetworkingServiceTests: XCTestCase {
     
-    var mockURLSession: MockURLSession!
-    var sut: NetworkingService!
+    private var mockURLSession: MockURLSession!
+    private var sut: NetworkingService!
     
-    let validVideosJSON = """
+    private let validVideosJSON = """
     [
         {
             "id": "1",
@@ -44,7 +44,7 @@ final class NetworkingServiceTests: XCTestCase {
     ]
     """.data(using: .utf8)!
     
-    let invalidJSON = """
+    private let invalidJSON = """
     [
         {
             "id": "1",
