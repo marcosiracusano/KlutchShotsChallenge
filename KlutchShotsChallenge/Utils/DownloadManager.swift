@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import OSLog
 
 enum DownloadState: Equatable {
     case notStarted
@@ -67,6 +68,7 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
         URLSession(configuration: .default, delegate: self, delegateQueue: nil)
     }()
     private(set) var currentDownloadingVideoId: String?
+    private let log: Logger = .download
     
     // MARK: - Methods
     func downloadVideo(_ videoId: String, from url: URL) -> AnyPublisher<DownloadState, Never> {
@@ -123,23 +125,21 @@ final class DownloadManager: NSObject, DownloadManagerProtocol {
     func deleteDownloadedVideo(videoId: String) -> AnyPublisher<DownloadState, Never> {
         guard let localURL = getLocalURL(for: videoId),
               FileManager.default.fileExists(atPath: localURL.path) else {
-            // If the file does not exist, we return an error
-            return Just(.failed(error: "File not found", type: .deletion))
+            
+            log.error("Attempted to delete non-existent video with ID: \(videoId)")
+            return Just(.failed(error: "The downloaded video could not be found", type: .deletion))
                 .eraseToAnyPublisher()
         }
         
         do {
             try FileManager.default.removeItem(at: localURL)
-            print("Successfully deleted video from: \(localURL.path)")
-            
-            // We return notStarted to indicate that the video is not downloaded
+            log.info("Successfully deleted video from: \(localURL.path)")
             return Just(.notStarted)
                 .eraseToAnyPublisher()
-        } catch {
-            print("Error deleting video: \(error.localizedDescription)")
             
-            // We return an error of deletion
-            return Just(.failed(error: error.localizedDescription, type: .deletion))
+        } catch {
+            log.error("Error deleting video \(videoId): \(error.localizedDescription)")
+            return Just(.failed(error: "Could not delete the video: \(error.localizedDescription)", type: .deletion))
                 .eraseToAnyPublisher()
         }
     }
@@ -158,12 +158,17 @@ extension DownloadManager: URLSessionDownloadDelegate {
     }
     
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let currentVideoId else { return }
+        guard let currentVideoId else {
+            log.error("Download completed but no video ID was set")
+            downloadStateSubject.send(.failed(error: "Internal error: Missing video ID"))
+            return
+        }
         
         // Get the destination URL
         guard let destinationURL = getLocalURL(for: currentVideoId) else {
+            log.error("Could not create local URL for video ID: \(currentVideoId)")
             DispatchQueue.main.async { [weak self] in
-                self?.downloadStateSubject.send(.failed(error: "Failed to create destination URL"))
+                self?.downloadStateSubject.send(.failed(error: "Could not create storage location for the video"))
             }
             return
         }
@@ -176,13 +181,15 @@ extension DownloadManager: URLSessionDownloadDelegate {
             }
             
             try FileManager.default.moveItem(at: location, to: destinationURL)
+            log.info("Successfully saved video to \(destinationURL.path)")
             
             DispatchQueue.main.async { [weak self] in
                 self?.downloadStateSubject.send(.completed)
                 self?.downloadTask = nil
             }
-            
         } catch {
+            log.error("Error saving video to \(destinationURL.path): \(error.localizedDescription)")
+            
             DispatchQueue.main.async { [weak self] in
                 self?.downloadStateSubject.send(.failed(error: error.localizedDescription))
                 self?.downloadTask = nil
@@ -192,6 +199,12 @@ extension DownloadManager: URLSessionDownloadDelegate {
     
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error else { return }
+        
+        if let urlError = error as? URLError {
+            log.error("Download task failed with URL error code: \(urlError.code.rawValue), details: \(urlError.localizedDescription)")
+        } else {
+            log.error("Download task failed with error: \(error.localizedDescription)")
+        }
         
         DispatchQueue.main.async { [weak self] in
             self?.downloadStateSubject.send(.failed(error: error.localizedDescription))

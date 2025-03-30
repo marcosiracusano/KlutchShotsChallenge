@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import OSLog
 
 final class VideoListViewModel: ObservableObject {
     @Published var videos: [Video] = []
@@ -14,6 +15,7 @@ final class VideoListViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     
     private let networking: NetworkingProtocol
+    private let log: Logger = .main
     private var cancellables = Set<AnyCancellable>()
     
     init(networking: NetworkingProtocol = NetworkingService()) {
@@ -38,13 +40,30 @@ final class VideoListViewModel: ObservableObject {
         }
         .receive(on: DispatchQueue.main)
         .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
+            guard let self else { return }
+                isLoading = false
                 
                 if case .failure(let error) = completion {
-                    self?.errorMessage = "Failed to load videos: \(error.localizedDescription)"
+                    if let networkError = error as? NetworkError {
+                        switch networkError {
+                        case .invalidURL:
+                            errorMessage = "Invalid API URL. Please contact support."
+                        case .serverError(let statusCode):
+                            errorMessage = "Server error \(statusCode). Please try again later."
+                        case .decodingError:
+                            errorMessage = "Failed to process the server response. Please try again."
+                        case .unknownError:
+                            errorMessage = "An unexpected error occurred. Please try again."
+                        }
+                    } else {
+                        errorMessage = "Failed to load videos: \(error.localizedDescription)"
+                    }
+                    
+                    log.notice("Video fetch operation failed, UI error message set")
                 }
             },
             receiveValue: { [weak self] fetchedVideos in
+                self?.log.info("Received \(fetchedVideos.count) videos")
                 self?.videos = fetchedVideos
             }
         )

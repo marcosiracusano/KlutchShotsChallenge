@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import OSLog
 
 final class VideoDetailViewModel: ObservableObject {
     
@@ -29,6 +30,7 @@ final class VideoDetailViewModel: ObservableObject {
     private var currentVideoUrl: String?
     private let downloadActionSubject = PassthroughSubject<DownloadAction, Never>()
     private var cancellables = Set<AnyCancellable>()
+    private let log: Logger = .main
     
     // MARK: - Initializer
     init(downloadManager: DownloadManagerProtocol = DownloadManager()) {
@@ -40,6 +42,7 @@ final class VideoDetailViewModel: ObservableObject {
     // MARK: - Internal methods
     func loadVideo(for videoId: String, videoUrl: String) {
         guard !videoId.isEmpty, !videoUrl.isEmpty else {
+            log.error("Failed to load video: empty ID or URL")
             errorMessage = "Failed to obtain video ID and URL"
             return
         }
@@ -49,12 +52,14 @@ final class VideoDetailViewModel: ObservableObject {
         
         // If the video is already downloaded, set the download state to completed
         if downloadManager.videoExists(for: videoId) {
+            log.info("Using downloaded video for ID: \(videoId)")
             isPlayingFromLocalFile = true
             downloadState = .completed
         }
         
         // Get the appropriate URL from download manager
         guard let url = downloadManager.getPlaybackURL(for: videoId, fallbackUrl: videoUrl) else {
+            log.error("Failed to obtain playback URL for video ID: \(videoId)")
             errorMessage = "Failed to obtain video URL"
             return
         }
@@ -97,7 +102,6 @@ final class VideoDetailViewModel: ObservableObject {
         default:
             break
         }
-        
     }
     
     func deleteDownloadedVideo() {
@@ -138,11 +142,17 @@ final class VideoDetailViewModel: ObservableObject {
         downloadActionSubject
             .receive(on: DispatchQueue.main)
             .compactMap { [weak self] action -> AnyPublisher<DownloadState, Never>? in
-                guard let self, let currentVideoId, let currentVideoUrl else { return nil }
+                guard let self, let currentVideoId, let currentVideoUrl else { 
+                    self?.log.error("Missing video ID or URL for download action")
+                    return nil 
+                }
                 
                 switch action {
                 case .download:
-                    guard let url = URL(string: currentVideoUrl) else { return nil }
+                    guard let url = URL(string: currentVideoUrl) else { 
+                        self.log.error("Invalid URL format: \(currentVideoUrl)")
+                        return nil 
+                    }
                     return downloadManager.downloadVideo(currentVideoId, from: url)
                     
                 case .delete:
@@ -186,8 +196,12 @@ final class VideoDetailViewModel: ObservableObject {
         guard let player,
               let currentVideoId,
               let localURL = downloadManager.getLocalURL(for: currentVideoId) else {
+            errorMessage = "Failed to switch to local playback"
+            log.error("Cannot switch to local playback: missing player, ID or local URL")
             return
         }
+        
+        log.info("Switching to local playback for video ID: \(currentVideoId)")
         
         // Save current playback time and playing state
         let currentTime = player.currentTime()
@@ -213,8 +227,12 @@ final class VideoDetailViewModel: ObservableObject {
     private func switchToStreamingPlayback(from videoUrl: String) {
         guard let player,
               let url = URL(string: videoUrl) else {
+            errorMessage = "Failed to switch to streaming playback"
+            log.error("Cannot switch to streaming: missing player or invalid URL")
             return
         }
+        
+        log.info("Switching to streaming playback")
         
         // Save current playback time and playing state
         let currentTime = player.currentTime()
