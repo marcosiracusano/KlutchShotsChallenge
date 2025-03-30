@@ -21,7 +21,7 @@ struct VideoRowView: View {
                 Text(video.duration).font(.subheadline)
                 Text(video.author).font(.caption)
             }
-            .foregroundStyle(Color(.primary))
+            .foregroundStyle(Color(.primaryText))
             
             Spacer()
         }
