@@ -9,9 +9,13 @@ import SwiftUI
 
 @main
 struct KlutchShotsChallengeApp: App {
+
+    private let dependencies: DependenciesProtocol = Dependencies()
+
     var body: some Scene {
         WindowGroup {
-            VideoListView()
+            VideoListView(viewModel: .init(networking: dependencies.networkingService))
+                .environment(\.dependencies, dependencies)
         }
     }
 }

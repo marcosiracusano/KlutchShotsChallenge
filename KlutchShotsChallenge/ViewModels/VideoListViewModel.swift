@@ -18,7 +18,7 @@ final class VideoListViewModel: ObservableObject {
     private let log: Logger = .main
     private var cancellables = Set<AnyCancellable>()
     
-    init(networking: NetworkingProtocol = NetworkingService()) {
+    init(networking: NetworkingProtocol) {
         self.networking = networking
     }
     

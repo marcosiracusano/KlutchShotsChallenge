@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct VideoListView: View {
+    @Environment(\.dependencies) private var dependencies
     @StateObject private var viewModel: VideoListViewModel
     @Namespace private var animation
     
-    init(viewModel: VideoListViewModel = VideoListViewModel()) {
+    init(viewModel: VideoListViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
     
@@ -32,7 +33,11 @@ struct VideoListView: View {
                 }
                 .navigationTitle("Videos")
                 .navigationDestination(for: Video.self) { video in
-                    VideoDetailView(video: video, animation: animation)
+                    VideoDetailView(
+                        viewModel: .init(downloadManager: dependencies.downloadManager),
+                        video: video,
+                        animation: animation
+                    )
                         .toolbarVisibility(.hidden, for: .navigationBar)
                 }
                 .overlay {
@@ -60,5 +65,5 @@ extension String: @retroactive Identifiable {
 }
 
 #Preview {
-    VideoListView()
+    VideoListView(viewModel: .init(networking: NetworkingService()))
 }

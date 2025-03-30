@@ -10,10 +10,16 @@ import _AVKit_SwiftUI
 
 struct VideoDetailView: View {
     
-    @StateObject private var viewModel = VideoDetailViewModel()
+    @StateObject private var viewModel: VideoDetailViewModel
     
     let video: Video
     let animation: Namespace.ID
+    
+    init(viewModel: VideoDetailViewModel, video: Video, animation: Namespace.ID) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+        self.video = video
+        self.animation = animation
+    }
     
     var body: some View {
         Group {
@@ -156,7 +162,6 @@ private extension VideoDetailView {
             .fixedSize(horizontal: false, vertical: true)
     }
     
-    @ViewBuilder
     func createVideoSourceIndicator() -> some View {
         HStack {
             if viewModel.isPlayingFromLocalFile {
@@ -176,5 +181,5 @@ private extension VideoDetailView {
 }
 
 #Preview {
-    VideoListView()
+    VideoListView(viewModel: .init(networking: NetworkingService()))
 }

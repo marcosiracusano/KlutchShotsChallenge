@@ -33,7 +33,7 @@ final class VideoDetailViewModel: ObservableObject {
     private let log: Logger = .main
     
     // MARK: - Initializer
-    init(downloadManager: DownloadManagerProtocol = DownloadManager()) {
+    init(downloadManager: DownloadManagerProtocol) {
         self.downloadManager = downloadManager
         setupOrientationObserver()
         setupDownloadPipeline()

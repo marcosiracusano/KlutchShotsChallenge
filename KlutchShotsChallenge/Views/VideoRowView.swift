@@ -30,5 +30,5 @@ struct VideoRowView: View {
 }
 
 #Preview {
-    VideoListView()
+    VideoListView(viewModel: .init(networking: NetworkingService()))
 }
